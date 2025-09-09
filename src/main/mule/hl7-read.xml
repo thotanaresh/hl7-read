@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:hl7="http://www.mulesoft.org/schema/mule/hl7" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/hl7 http://www.mulesoft.org/schema/mule/hl7/current/mule-hl7.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8ea114f4-6faa-4bfd-894c-a6569601f5ee" >
+		<http:listener-connection host="0.0.0.0" port="8085" />
+	</http:listener-config>
+	<hl7:config name="HL7_EDI_Config" doc:name="HL7 EDI Config" doc:id="996f097d-6fd3-458a-b4f3-02062574acc7" >
+		<hl7:schemas >
+			<hl7:schema value="/hl7/v2_3_1/ADT_A01.esl" />
+		</hl7:schemas>
+	</hl7:config>
+	<flow name="hl7-readFlow" doc:id="a1e59620-f0d5-4885-8bd2-4ae3395c5da4" >
+		<http:listener doc:name="Listener" doc:id="b0eed022-7454-43bc-9047-b3416d3f93e9" config-ref="HTTP_Listener_config" path="/api/hl7"/>
+		<logger level="INFO" doc:name="Logger" doc:id="0ab1f3a6-fffb-48f9-94e0-6726c18c993c" message="#[payload]"/>
+		<hl7:read doc:name="Read" doc:id="5680f45b-3ea9-4cae-9c14-569c3863f55b" config-ref="HL7_EDI_Config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="d437beb8-fc49-431f-b183-a1c612aee61d" message="#[payload]"/>
+	</flow>
+</mule>
