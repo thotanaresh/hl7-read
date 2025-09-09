@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+	<munit:config name="hl7-read-test.xml" />
+
+	<munit:test name="hl7-readFlow-test" description="Test for HL7 read flow">
+		<munit:behavior>
+			<!-- Mock HTTP listener to avoid port conflicts during testing -->
+			<munit-tools:mock-when processor="http:listener">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="Listener" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return payload="#[output text/plain --- 'MSH|^~\\&amp;|SENDING_APPLICATION|SENDING_FACILITY|RECEIVING_APPLICATION|RECEIVING_FACILITY|20160915003015||ADT^A01|123456|P|2.3.1\nEVN|A01|20160915003015|||\nPID|1||123456789|0123456789^AA^^JP|SMITH^JOHN^M||19600101|M|||123 MAIN STREET^^ANYTOWN^NY^12345||555-555-5555|||S']" />
+			</munit-tools:mock-when>
+			
+			<!-- Mock HL7 read operation to return a predictable response -->
+			<munit-tools:mock-when processor="hl7:read">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="doc:name" whereValue="Read" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return payload="#[output application/java --- readUrl('classpath://sample-hl7-response.json', 'application/json')]" />
+			</munit-tools:mock-when>
+		</munit:behavior>
+		
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to hl7-readFlow" name="hl7-readFlow" />
+		</munit:execution>
+		
+		<munit:validation>
+			<!-- Verify that the payload is not null after flow execution -->
+			<munit-tools:assert-that doc:name="Assert payload is not null" expression="#[payload]" is="#[MunitTools::notNullValue()]" />
+			
+			<!-- Verify that the payload is of type Object (Map) -->
+			<munit-tools:assert-that doc:name="Assert payload is an object" expression="#[typeOf(payload)]" is="#[MunitTools::equalTo('Object')]" />
+		</munit:validation>
+	</munit:test>
+
+</mule>
