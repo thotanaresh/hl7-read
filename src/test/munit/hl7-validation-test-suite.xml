@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:hl7="http://www.mulesoft.org/schema/mule/hl7"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/hl7 http://www.mulesoft.org/schema/mule/hl7/current/mule-hl7.xsd">
+
+    <munit:config name="hl7-validation-test-suite.xml"/>
+    
+    <!-- Load test data for validation tests -->
+    <munit:before-suite name="before-validation-suite">
+        <munit:set-event>
+            <munit:variables>
+                <munit:variable key="validationTestCases" value="#[readUrl('classpath://test-data/hl7-samples.json', 'application/json')]" />
+            </munit:variables>
+        </munit:set-event>
+    </munit:before-suite>
+    
+    <!-- Specific test for HL7 message validation failures -->
+    <munit:test name="hl7-validation-failure-test" description="Test HL7 message validation failures">
+        <munit:behavior>
+            <!-- Mock the HTTP listener to avoid port conflicts -->
+            <munit-tools:mock-when processor="http:listener">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="Listener"/>
+                </munit-tools:with-attributes>
+            </munit-tools:mock-when>
+        </munit:behavior>
+        
+        <munit:execution>
+            <!-- Filter only test cases that should fail validation -->
+            <set-variable variableName="failureCases" value="#[vars.validationTestCases filter ($.expected.error == true)]" />
+            
+            <!-- Iterate through failure test cases -->
+            <foreach collection="#[vars.failureCases]">
+                <logger level="INFO" message="Testing validation failure case: #[payload.name]" />
+                
+                <!-- Set the HL7 message as payload -->
+                <set-payload value="#[payload.input]" mediaType="text/plain" />
+                
+                <!-- Initialize error tracking variables -->
+                <set-variable variableName="errorReceived" value="false" />
+                <set-variable variableName="errorType" value="null" />
+                <set-variable variableName="errorMessage" value="null" />
+                
+                <!-- Expect an error when processing invalid messages -->
+                <try>
+                    <flow-ref name="hl7-readFlow" />
+                    <!-- If we get here, the test should fail as we expected an error -->
+                    <munit-tools:fail message="Expected a validation error for test case: #[payload.name]" />
+                    
+                    <error-handler>
+                        <on-error-continue type="ANY">
+                            <!-- Capture error details for validation -->
+                            <set-variable variableName="errorReceived" value="true" />
+                            <set-variable variableName="errorType" value="#[error.errorType.identifier]" />
+                            <set-variable variableName="errorMessage" value="#[error.description]" />
+                            <logger level="INFO" message="Received expected error for case: #[payload.name], Type: #[vars.errorType], Message: #[vars.errorMessage]" />
+                        </on-error-continue>
+                    </error-handler>
+                </try>
+                
+                <!-- Assert that we received an error -->
+                <munit-tools:assert-that expression="#[vars.errorReceived]" is="#[MunitTools::equalTo(true)]" message="No error was thrown for invalid message: #[payload.name]" />
+                
+                <!-- Validate error details based on test case -->
+                <choice>
+                    <when expression="#[payload.name == 'invalid-message-type']">
+                        <!-- For invalid message type, expect schema validation error -->
+                        <munit-tools:assert-that expression="#[vars.errorType]" is="#[MunitTools::equalToIgnoringCase('HL7:SCHEMA_VALIDATION')]" />
+                    </when>
+                    <when expression="#[payload.name == 'invalid-message-format']">
+                        <!-- For invalid date format, expect parsing or validation error -->
+                        <munit-tools:assert-that expression="#[vars.errorType]" is="#[MunitTools::anyOf(MunitTools::equalToIgnoringCase('HL7:SCHEMA_VALIDATION'), MunitTools::equalToIgnoringCase('HL7:PARSING'))]" />
+                    </when>
+                    <when expression="#[payload.name == 'missing-required-field']">
+                        <!-- For missing required fields, expect schema validation error -->
+                        <munit-tools:assert-that expression="#[vars.errorType]" is="#[MunitTools::equalToIgnoringCase('HL7:SCHEMA_VALIDATION')]" />
+                    </when>
+                </choice>
+            </foreach>
+        </munit:execution>
+    </munit:test>
+
+</mule>

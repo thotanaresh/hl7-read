@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:hl7="http://www.mulesoft.org/schema/mule/hl7"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/hl7 http://www.mulesoft.org/schema/mule/hl7/current/mule-hl7.xsd">
+
+    <munit:config name="hl7-read-test-suite.xml"/>
+    
+    <!-- Mock HTTP Listener to avoid port conflicts during tests -->
+    <munit:before-suite name="before-suite">
+        <munit:set-event>
+            <munit:variables>
+                <munit:variable key="testCases" value="#[readUrl('classpath://test-data/hl7-samples.json', 'application/json')]"/>
+            </munit:variables>
+        </munit:set-event>
+    </munit:before-suite>
+    
+    <munit:test name="hl7-read-parameterized-test" description="Parameterized test for HL7 read flow">
+        <munit:behavior>
+            <!-- Mock the HTTP listener to avoid port conflicts -->
+            <munit-tools:mock-when processor="http:listener">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:name" whereValue="Listener"/>
+                </munit-tools:with-attributes>
+            </munit-tools:mock-when>
+        </munit:behavior>
+        
+        <munit:execution>
+            <!-- Iterate through test cases -->
+            <foreach collection="#[vars.testCases]">
+                <choice>
+                    <when expression="#[not(payload.expected.error?)]">
+                        <!-- Test valid cases -->
+                        <logger level="INFO" message="Testing valid case: #[payload.name]"/>
+                        
+                        <!-- Set the HL7 message as payload -->
+                        <set-payload value="#[payload.input]" mediaType="text/plain"/>
+                        
+                        <!-- Call the flow under test -->
+                        <flow-ref name="hl7-readFlow"/>
+                        
+                        <!-- Assert the parsed HL7 message structure -->
+                        <munit-tools:assert-that expression="#[payload.MSH?]" is="#[MunitTools::notNullValue()]"/>
+                        <munit-tools:assert-that expression="#[payload.EVN?]" is="#[MunitTools::notNullValue()]"/>
+                        <munit-tools:assert-that expression="#[payload.PID?]" is="#[MunitTools::notNullValue()]"/>
+                        
+                        <!-- Validate specific fields from the expected structure -->
+                        <munit-tools:assert-that expression="#[payload.MSH.'MSH.9'.'MSG.1']" is="#[MunitTools::equalTo('ADT')]"/>
+                        <munit-tools:assert-that expression="#[payload.MSH.'MSH.9'.'MSG.2']" is="#[MunitTools::equalTo('A01')]"/>
+                        
+                        <!-- Compare with expected structure from test case -->
+                        <munit-tools:assert-that expression="#[payload.MSH.'MSH.3']" is="#[MunitTools::equalTo(payload.expected.MSH.'MSH.3')]"/>
+                        <munit-tools:assert-that expression="#[payload.MSH.'MSH.4']" is="#[MunitTools::equalTo(payload.expected.MSH.'MSH.4')]"/>
+                    </when>
+                    <otherwise>
+                        <!-- Test error cases -->
+                        <logger level="INFO" message="Testing error case: #[payload.name]"/>
+                        
+                        <!-- Set the HL7 message as payload -->
+                        <set-payload value="#[payload.input]" mediaType="text/plain"/>
+                        
+                        <!-- Initialize error variable -->
+                        <set-variable variableName="errorReceived" value="false"/>
+                        
+                        <!-- Expect an error when processing invalid messages -->
+                        <try>
+                            <flow-ref name="hl7-readFlow"/>
+                            <!-- If we get here, the test should fail as we expected an error -->
+                            <munit-tools:fail message="Expected an error for test case: #[payload.name]"/>
+                            <error-handler>
+                                <on-error-continue>
+                                    <!-- Test passes if we get an error -->
+                                    <logger level="INFO" message="Received expected error for case: #[payload.name]"/>
+                                    <set-variable variableName="errorReceived" value="true"/>
+                                </on-error-continue>
+                            </error-handler>
+                        </try>
+                        
+                        <!-- Assert that we received an error -->
+                        <munit-tools:assert-that expression="#[vars.errorReceived]" is="#[MunitTools::equalTo(true)]"/>
+                    </otherwise>
+                </choice>
+            </foreach>
+        </munit:execution>
+    </munit:test>
+
+</mule>
