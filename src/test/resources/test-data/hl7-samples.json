@@ -1,0 +1,63 @@
+[
+  {
+    "name": "valid-adt-a01",
+    "input": "MSH|^~\\&|SENDING_APPLICATION|SENDING_FACILITY|RECEIVING_APPLICATION|RECEIVING_FACILITY|20230101120000||ADT^A01|MSG00001|P|2.3.1\rEVN|A01|20230101120000\rPID|1||MRN12345^^^FACILITY^MR||DOE^JOHN^||19800101|M",
+    "expected": {
+      "MSH": {
+        "MSH.1": "|",
+        "MSH.2": "^~\\&",
+        "MSH.3": "SENDING_APPLICATION",
+        "MSH.4": "SENDING_FACILITY",
+        "MSH.5": "RECEIVING_APPLICATION",
+        "MSH.6": "RECEIVING_FACILITY",
+        "MSH.7": "20230101120000",
+        "MSH.9": {
+          "MSG.1": "ADT",
+          "MSG.2": "A01"
+        },
+        "MSH.10": "MSG00001",
+        "MSH.11": "P",
+        "MSH.12": "2.3.1"
+      },
+      "EVN": {
+        "EVN.1": "A01",
+        "EVN.2": "20230101120000"
+      },
+      "PID": {
+        "PID.1": "1",
+        "PID.3": [{
+          "CX.1": "MRN12345",
+          "CX.4": "FACILITY",
+          "CX.5": "MR"
+        }],
+        "PID.5": [{
+          "XPN.1": "DOE",
+          "XPN.2": "JOHN"
+        }],
+        "PID.7": "19800101",
+        "PID.8": "M"
+      }
+    }
+  },
+  {
+    "name": "missing-required-field",
+    "input": "MSH|^~\\&|SENDING_APPLICATION|SENDING_FACILITY|RECEIVING_APPLICATION|RECEIVING_FACILITY|20230101120000||ADT^A01|MSG00002|P|2.3.1\rEVN|A01|20230101120000\rPID|1||MRN12345^^^FACILITY^MR",
+    "expected": {
+      "error": true
+    }
+  },
+  {
+    "name": "invalid-message-type",
+    "input": "MSH|^~\\&|SENDING_APPLICATION|SENDING_FACILITY|RECEIVING_APPLICATION|RECEIVING_FACILITY|20230101120000||INVALID^A01|MSG00003|P|2.3.1\rEVN|A01|20230101120000\rPID|1||MRN12345^^^FACILITY^MR||DOE^JOHN^||19800101|M",
+    "expected": {
+      "error": true
+    }
+  },
+  {
+    "name": "invalid-message-format",
+    "input": "MSH|^~\\&|SENDING_APPLICATION|SENDING_FACILITY|RECEIVING_APPLICATION|RECEIVING_FACILITY|20230101120000||ADT^A01|MSG00004|P|2.3.1\rEVN|A01|20230101120000\rPID|1||MRN12345^^^FACILITY^MR||DOE^JOHN^||INVALID_DATE|M",
+    "expected": {
+      "error": true
+    }
+  }
+]
